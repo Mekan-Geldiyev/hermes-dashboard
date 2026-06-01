@@ -314,6 +314,9 @@ export default function Dashboard() {
   const [botConnected, setBotConnected] = useState(false);
   const [lastFetched, setLastFetched]   = useState<Date | null>(null);
 
+  // Real BTC price from bot
+  const [realPrice, setRealPrice] = useState<number | null>(null);
+
   // Live log state
   const [logLines, setLogLines] = useState<LogLine[]>([]);
 
@@ -338,7 +341,21 @@ export default function Dashboard() {
     return () => clearInterval(id);
   }, [fetchTrades]);
 
-  // ── Log polling every 5s ────────────────────────────────────────────────
+  // ── Real price polling every 5s ─────────────────────────────────────────
+  useEffect(() => {
+    const fetchStatus = async () => {
+      try {
+        const res = await fetch('/api/status', { cache: 'no-store' });
+        const data = await res.json();
+        if (data.last_price) setRealPrice(data.last_price);
+      } catch { /* bot offline */ }
+    };
+    fetchStatus();
+    const id = setInterval(fetchStatus, 5_000);
+    return () => clearInterval(id);
+  }, []);
+
+  // ── Log polling every 5s ─────────────────────────────────────────────────
   useEffect(() => {
     const fetchLogs = async () => {
       try {
@@ -450,14 +467,30 @@ export default function Dashboard() {
       </div>
 
       {/* ── Price ticker ───────────────────────────────────────────────────── */}
-      <div className="flex items-end gap-4">
-        <span className={`text-4xl font-bold tracking-tight ${priceUp ? 'text-bull' : 'text-bear'}`}>
-          ${fmt(price)}
-        </span>
-        <span className={`text-lg mb-1 ${priceUp ? 'text-bull' : 'text-bear'}`}>
-          {priceUp ? '▲' : '▼'} {Math.abs(delta).toFixed(3)}%
-        </span>
-        <span className="text-[10px] text-gray-700 mb-1 ml-1">sim · tick #{tick}</span>
+      <div className="flex items-end gap-4 flex-wrap">
+        {/* Real price from Binance via bot */}
+        {realPrice ? (
+          <div className="flex items-end gap-3">
+            <span className="text-4xl font-bold tracking-tight text-bull">
+              ${fmt(realPrice)}
+            </span>
+            <span className="text-[11px] text-bull/60 mb-1.5 px-1.5 py-0.5 rounded border border-bull/20 bg-bull/5">
+              LIVE · Binance
+            </span>
+          </div>
+        ) : (
+          <div className="flex items-end gap-3">
+            <span className={`text-4xl font-bold tracking-tight ${priceUp ? 'text-bull' : 'text-bear'}`}>
+              ${fmt(price)}
+            </span>
+            <span className={`text-lg mb-1 ${priceUp ? 'text-bull' : 'text-bear'}`}>
+              {priceUp ? '▲' : '▼'} {Math.abs(delta).toFixed(3)}%
+            </span>
+            <span className="text-[10px] text-gray-600 mb-1.5 px-1.5 py-0.5 rounded border border-white/10">
+              sim · tick #{tick}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* ── Main grid ──────────────────────────────────────────────────────── */}
