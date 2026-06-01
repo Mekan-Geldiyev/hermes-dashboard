@@ -42,7 +42,7 @@ Output ONLY valid JSON — no markdown:
 {"direction":"BULL"|"BEAR"|"NO_TRADE","confidence":0.00,"reasoning":"max 20 words"}`;
 
       const msg = await client.messages.create({
-        model: 'claude-opus-4-7-20251101',
+        model: 'claude-opus-4-8',
         max_tokens: 150,
         system: 'You are Hermes, a quant trading brain. Synthesise signals and output a single JSON trading decision. Be terse.',
         messages: [{ role: 'user', content: prompt }],
