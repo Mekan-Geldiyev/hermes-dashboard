@@ -13,6 +13,11 @@ import type { MarkovResult, MCResult, SMCResult, ClaudeDecision } from '@/lib/ty
 
 // ─── types ────────────────────────────────────────────────────────────────────
 
+interface LogLine {
+  text: string;
+  tag: 'error' | 'success' | 'warn' | 'highlight' | 'signal' | 'info';
+}
+
 interface BotTrade {
   id: string;
   timestamp: string;
@@ -224,6 +229,67 @@ function PaperTradesPanel({ ledger, connected, lastFetched }: {
   );
 }
 
+// ─── Log Panel ────────────────────────────────────────────────────────────────
+
+const LOG_COLORS: Record<LogLine['tag'], string> = {
+  error:     'text-bear',
+  success:   'text-bull',
+  warn:      'text-warn',
+  highlight: 'text-blue-400',
+  signal:    'text-purple-400',
+  info:      'text-gray-500',
+};
+
+function LogPanel({ lines, connected }: { lines: LogLine[]; connected: boolean }) {
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [lines]);
+
+  return (
+    <Card
+      title={
+        <span className="flex items-center gap-2">
+          BOT LOGS · LIVE STREAM
+          {connected
+            ? <span className="w-1.5 h-1.5 rounded-full bg-bull animate-pulse-fast inline-block" />
+            : <span className="w-1.5 h-1.5 rounded-full bg-gray-700 inline-block" />}
+        </span>
+      }
+    >
+      <div className="bg-black/40 rounded-lg p-3 h-56 overflow-y-auto font-mono text-[10px] leading-relaxed">
+        {lines.length === 0 ? (
+          <span className="text-gray-700">
+            {connected ? 'No log output yet…' : 'Bot offline — no logs available'}
+          </span>
+        ) : (
+          lines.map((l, i) => (
+            <div key={i} className={`${LOG_COLORS[l.tag]} whitespace-pre-wrap break-all`}>
+              {l.text}
+            </div>
+          ))
+        )}
+        <div ref={bottomRef} />
+      </div>
+      <div className="mt-2 flex gap-3 text-[9px] text-gray-700 flex-wrap">
+        {[
+          { tag: 'error',     label: 'Error',   color: 'bg-bear' },
+          { tag: 'success',   label: 'Success',  color: 'bg-bull' },
+          { tag: 'warn',      label: 'No trade', color: 'bg-warn' },
+          { tag: 'highlight', label: 'Fire/Market', color: 'bg-blue-400' },
+          { tag: 'signal',    label: 'Signals',  color: 'bg-purple-400' },
+        ].map(({ label, color }) => (
+          <span key={label} className="flex items-center gap-1">
+            <span className={`w-1.5 h-1.5 rounded-full ${color} inline-block`} />
+            {label}
+          </span>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
 // ─── main Dashboard ───────────────────────────────────────────────────────────
 
 export default function Dashboard() {
@@ -248,6 +314,9 @@ export default function Dashboard() {
   const [botConnected, setBotConnected] = useState(false);
   const [lastFetched, setLastFetched]   = useState<Date | null>(null);
 
+  // Live log state
+  const [logLines, setLogLines] = useState<LogLine[]>([]);
+
   useEffect(() => { simRef.current = new PriceSimulator(); }, []);
 
   // ── Live trades polling ──────────────────────────────────────────────────
@@ -268,6 +337,20 @@ export default function Dashboard() {
     const id = setInterval(fetchTrades, 30_000);
     return () => clearInterval(id);
   }, [fetchTrades]);
+
+  // ── Log polling every 5s ────────────────────────────────────────────────
+  useEffect(() => {
+    const fetchLogs = async () => {
+      try {
+        const res = await fetch('/api/logs?n=150', { cache: 'no-store' });
+        const data = await res.json();
+        if (data.lines?.length) setLogLines(data.lines);
+      } catch { /* bot offline */ }
+    };
+    fetchLogs();
+    const id = setInterval(fetchLogs, 5_000);
+    return () => clearInterval(id);
+  }, []);
 
   // ── Claude query ─────────────────────────────────────────────────────────
   const askClaude = useCallback(async (
@@ -436,6 +519,9 @@ export default function Dashboard() {
             connected={botConnected}
             lastFetched={lastFetched}
           />
+
+          {/* ── Live log stream ── */}
+          <LogPanel lines={logLines} connected={botConnected} />
 
         </div>
 
